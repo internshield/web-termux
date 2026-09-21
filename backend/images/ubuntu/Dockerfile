@@ -15,7 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     sqlite3 strace lsof socat ripgrep \
     && rm -rf /var/lib/apt/lists/*
 
-RUN useradd -m -s /bin/bash -u 1000 internshield \
+RUN groupadd --gid 10001 internshield \
+    && useradd -m -s /bin/bash -u 10001 -g 10001 internshield \
     && echo 'internshield ALL=(ALL) NOPASSWD: /usr/bin/apt, /usr/bin/apt-get, /usr/bin/apt-cache' > /etc/sudoers.d/internshield \
     && chmod 0440 /etc/sudoers.d/internshield \
     && mkdir -p /home/internshield/.config /workspace \
@@ -27,7 +28,7 @@ RUN useradd -m -s /bin/bash -u 1000 internshield \
 COPY banner.sh /usr/local/bin/webtermux-banner
 RUN chmod +x /usr/local/bin/webtermux-banner \
     && printf '\nwebtermux-banner\n' >> /home/internshield/.bash_profile \
-    && printf '\nPS1="\\[\\e[1;32m\\]\\u@webtermux\\[\\e[0m\\]:\\[\\e[1;34m\\]\\w\\[\\e[0m\\]\\$ "\n' >> /home/internshield/.bashrc \
+    && printf '\nPS1="\\[\\e[1;32m\\]\\u@webtermux\\[\\e[0m\\]:\\[\\e[1;34m\\]\\w\\[\\e[0m\\]\\$ "' >> /home/internshield/.bashrc \
     && chown internshield:internshield /home/internshield/.bash_profile /home/internshield/.bashrc
 
 USER internshield
