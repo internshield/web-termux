@@ -1,6 +1,6 @@
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
-import { SandboxAddon } from "@cloudflare/sandbox";
+import { SandboxAddon } from "@cloudflare/sandbox/xterm";
 import "@xterm/xterm/css/xterm.css";
 import "./styles.css";
 
@@ -61,8 +61,10 @@ function writeLocalBanner() {
 
 function connect() {
   const addon = new SandboxAddon({
-    terminal: term,
-    url: "/terminal"
+    getWebSocketUrl: ({ origin }) => `${origin}/terminal`,
+    onStateChange: (state, error) => {
+      bootState.textContent = error ? `PTY ${state}: ${String(error)}` : `PTY ${state}`;
+    }
   });
   term.loadAddon(addon);
   addon.connect();
