@@ -244,13 +244,22 @@ wss.on("connection", async (ws, _req, auth) => {
   try {
     await attachSession(auth, ws);
   } catch (error) {
-    ws.close(1011, String(error.message || error));
+    const message = String(error?.stack || error?.message || error);
+    console.error("[WebTermux] session attach failed:", message);
+    if (ws.readyState === WebSocket.OPEN) {
+      try { ws.send(`\\r\\n\\x1b[1;31m[WebTermux] session error: ${String(error?.message || error)}\\x1b[0m\\r\\n`); } catch {}
+    }
+    try { ws.close(1011, String(error?.message || error)); } catch {}
     return;
   }
 
   const key = safeKey(auth.profile, auth.sessionId);
   const session = sessions.get(key);
-  if (!session) return;
+  if (!session) {
+    console.error("[WebTermux] session missing after attach:", key);
+    try { ws.close(1011, "Session missing after attach"); } catch {}
+    return;
+  }
 
   ws.on("message", (raw, isBinary) => {
     session.lastActivity = Date.now();
