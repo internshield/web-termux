@@ -3,136 +3,169 @@ import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import "./styles.css";
 
+declare const V86: any;
+
 const app = document.querySelector<HTMLDivElement>("#app")!;
-app.innerHTML = `
-<div class="frame">
-  <div class="head">
-    <div class="brand"><span class="led"></span><strong>WEBTERMUX</strong><em>InternShield</em></div>
-    <div class="controls"><button data-theme="A">A</button><button data-theme="B">B</button><button data-theme="C">C</button><button data-theme="D">D</button><button data-theme="E">E</button><button id="clear">clear</button></div>
-  </div>
-  <div id="terminal"></div>
-  <div class="foot"><span id="state">BOOTING</span><span>terminal-first · browser runtime</span></div>
-</div>`;
+app.innerHTML = `<div id="terminal"></div><div id="boot"><span id="boot-state">Starting WebTermux Linux...</span></div>`;
+
+const terminalHost = document.querySelector<HTMLDivElement>("#terminal")!;
+const bootState = document.querySelector<HTMLSpanElement>("#boot-state")!;
 
 const nav = navigator as Navigator & { deviceMemory?: number };
 const term = new Terminal({
-  convertEol: true,
+  convertEol: false,
   cursorBlink: true,
-  scrollback: 10000,
+  scrollback: 20000,
   fontSize: 15,
   fontFamily: "Cascadia Mono, Consolas, Menlo, Monaco, monospace",
-  theme: { background: "#070707", foreground: "#d7d7d7", cursor: "#42a5ff", selectionBackground: "#23425f" }
+  theme: {
+    background: "#050505",
+    foreground: "#d7d7d7",
+    cursor: "#42a5ff",
+    cursorAccent: "#050505",
+    selectionBackground: "#23425f"
+  }
 });
+
 const fit = new FitAddon();
 term.loadAddon(fit);
-term.open(document.querySelector("#terminal")!);
+term.open(terminalHost);
 fit.fit();
 
-const banner = [
-  "┌─(vidit㉿ViditShringi)-[~]",
-  "└─$ fastfetch",
-  "",
-  "            .--.                         vidit@ViditShringi",
-  "           |o_o |                        -----------------",
-  "           |:_/ |                        OS: WebTermux browser runtime",
-  "          //   \\ \\                       Host: WebAssembly/browser sandbox",
-  "         (|     | )                      Kernel: browser-managed runtime",
-  "        /'\\_   _/\\`                      Shell: bash-style terminal",
-  "        \\___)=(___/                      Terminal: xterm.js",
-  "",
-  `                                         Browser: ${nav.userAgent}`,
-  `                                         CPU: ${nav.hardwareConcurrency ?? "unknown"} logical cores`,
-  `                                         Memory: ${nav.deviceMemory ?? "unknown"} GiB (browser exposed)`,
-  `                                         Display: ${screen.width}x${screen.height}`,
-  "                                         Network: browser sandbox",
-  "",
-  "                 I N T E R N S H I E L D",
-  "                       W E B T E R M U X",
-  "",
-  "  Terminal ready. Type 'help'.",
-  ""
-].join("\r\n");
+const themes = {
+  A: { background: "#05080c", foreground: "#4da6ff", cursor: "#4da6ff", selectionBackground: "#18324f" },
+  B: { background: "#050805", foreground: "#48ff7f", cursor: "#48ff7f", selectionBackground: "#164322" },
+  C: { background: "#090505", foreground: "#ff586b", cursor: "#ff586b", selectionBackground: "#542027" },
+  D: { background: "#050505", foreground: "#f4f4f4", cursor: "#ffffff", selectionBackground: "#333333" },
+  E: { background: "#050505", foreground: "#7cf7ff", cursor: "#ffcf70", selectionBackground: "#27414a" }
+} as const;
 
-let prompt = "└─$ ";
-let input = "";
+let emulator: any = null;
+let booted = false;
+let bootstrapSent = false;
 
-function promptNow() { term.write("\r\n" + prompt); }
-
-function help() {
-  term.writeln("\r\nCommands:");
-  term.writeln("  help       show this help");
-  term.writeln("  fastfetch  runtime information");
-  term.writeln("  about      project information");
-  term.writeln("  pwd        virtual home");
-  term.writeln("  ls         virtual workspace");
-  term.writeln("  echo TEXT  print text");
-  term.writeln("  date       current date");
-  term.writeln("  clear      clear screen");
+function browserFacts() {
+  return [
+    `Browser: ${nav.userAgent}`,
+    `CPU: ${nav.hardwareConcurrency ?? "unknown"} logical cores`,
+    `Memory: ${nav.deviceMemory ?? "unknown"} GiB (browser exposed)`,
+    `Display: ${screen.width}x${screen.height}`
+  ];
 }
 
-function run(line: string) {
-  const s = line.trim();
-  if (!s) { promptNow(); return; }
-  const [cmd, ...args] = s.split(/\s+/);
+function send(data: string) {
+  emulator?.serial0_send(data);
+}
 
-  if (cmd === "help") help();
-  else if (cmd === "fastfetch") {
-    term.writeln("\r\nOS       WebTermux browser runtime");
-    term.writeln("Host     WebAssembly/browser sandbox");
-    term.writeln(`Browser  ${nav.userAgent}`);
-    term.writeln(`CPU      ${nav.hardwareConcurrency ?? "unknown"} logical cores`);
-    term.writeln(`Memory   ${nav.deviceMemory ?? "unknown"} GiB`);
-    term.writeln(`Display  ${screen.width}x${screen.height}`);
-  } else if (cmd === "about") {
-    term.writeln("\r\nInternShield WebTermux");
-    term.writeln("Terminal-first browser workspace.");
-    term.writeln("The frontend reports only browser-observable facts.");
-    term.writeln("A later Cloudflare backend can attach a real isolated Linux PTY.");
-  } else if (cmd === "pwd") term.writeln("/home/vidit");
-  else if (cmd === "ls") term.writeln("Desktop  Downloads  labs  notes  projects");
-  else if (cmd === "echo") term.writeln(args.join(" "));
-  else if (cmd === "date") term.writeln(new Date().toString());
-  else if (cmd === "clear") term.clear();
-  else {
-    term.writeln(`\r\n${cmd}: command not found`);
-    term.writeln("Use 'help' for commands in this browser build.");
+function writeStartup() {
+  const lines = [
+    "",
+    "\x1b[1;34m _       __     __    ____   _____ ____  __  __ _   _  __  __  _  _\x1b[0m",
+    "\x1b[1;34m| |     / /__  / /_  / / /  / ___// __ \\|  \\/  | | | |  \\/  | || |\x1b[0m",
+    "\x1b[1;34m| | /| / / _ \\/ __ \\/ / /   \\__ \\/ /_/ /| |\\/| | | | | |\\/| | || |_\x1b[0m",
+    "\x1b[1;34m| |/ |/ /  __/ /_/ / /_/ /  ___/ /_/ /| |  | | |_| | | | |  | | |__   _|\x1b[0m",
+    "\x1b[1;34m|__/|__/\\___/_.___/____/  /____/\\____/ |_|  |_|\\___/| |_| |_|  |_| |_|\x1b[0m",
+    "",
+    "\x1b[1;36m                 I N T E R N S H I E L D\x1b[0m",
+    "\x1b[1;37m                      W E B T E R M U X\x1b[0m",
+    "",
+    "\x1b[1;32mWebTermux Linux guest is running in your browser.\x1b[0m",
+    "\x1b[90mBrowser-side facts (not guest OS facts):\x1b[0m",
+    ...browserFacts().map(x => `\x1b[90m  ${x}\x1b[0m`),
+    "",
+    "\x1b[90mType commands directly. This is a real emulated Linux shell, not a command simulator.\x1b[0m",
+    ""
+  ];
+  term.write(lines.join("\r\n"));
+}
+
+function resize() {
+  fit.fit();
+  if (emulator?.bus) {
+    try {
+      emulator.bus.send("serial0-resize", [term.cols, term.rows]);
+    } catch {}
   }
-  promptNow();
 }
 
 term.onData((data) => {
-  for (const ch of data) {
-    if (ch === "\r") {
-      term.write("\r\n");
-      run(input);
-      input = "";
-    } else if (ch === "\u007f") {
-      if (input) { input = input.slice(0, -1); term.write("\b \b"); }
-    } else if (ch === "\u0003") {
-      input = "";
-      term.write("^C");
-      promptNow();
-    } else if (ch >= " " && ch <= "~") {
-      input += ch;
-      term.write(ch);
-    }
-  }
+  if (!emulator) return;
+  emulator.serial0_send(data);
 });
 
-const themes: Record<string, {background:string;foreground:string;cursor:string;selectionBackground:string}> = {
-  A: {background:"#05080c",foreground:"#4da6ff",cursor:"#4da6ff",selectionBackground:"#18324f"},
-  B: {background:"#050805",foreground:"#48ff7f",cursor:"#48ff7f",selectionBackground:"#164322"},
-  C: {background:"#090505",foreground:"#ff586b",cursor:"#ff586b",selectionBackground:"#542027"},
-  D: {background:"#050505",foreground:"#f4f4f4",cursor:"#ffffff",selectionBackground:"#333333"},
-  E: {background:"#050505",foreground:"#7cf7ff",cursor:"#ffcf70",selectionBackground:"#27414a"}
-};
-document.querySelectorAll<HTMLButtonElement>("[data-theme]").forEach((button) => {
-  button.addEventListener("click", () => {
-    term.options.theme = themes[button.dataset.theme ?? "A"];
-  });
+term.onResize(({ cols, rows }) => {
+  try {
+    emulator?.bus?.send("serial0-resize", [cols, rows]);
+  } catch {}
 });
-document.querySelector("#clear")?.addEventListener("click", () => term.clear());
-window.addEventListener("resize", () => fit.fit());
-term.write(banner);
-term.write("\r\n" + prompt);
-document.querySelector("#state")!.textContent = "READY";
+
+window.addEventListener("resize", resize);
+
+function installThemeHotkeys() {
+  window.addEventListener("keydown", (event) => {
+    if (!event.ctrlKey || !event.shiftKey) return;
+    const key = event.key.toUpperCase() as keyof typeof themes;
+    if (!themes[key]) return;
+    event.preventDefault();
+    term.options.theme = themes[key];
+  });
+}
+
+async function boot() {
+  bootState.textContent = "Loading x86 Linux emulator...";
+  term.write("\x1b[1;34mWebTermux\x1b[0m\r\n");
+  term.write("\x1b[90mLoading real Linux guest runtime...\x1b[0m\r\n\r\n");
+
+  emulator = new V86({
+    wasm_path: "https://copy.sh/v86/build/v86.wasm",
+    memory_size: 128 * 1024 * 1024,
+    vga_memory_size: 8 * 1024 * 1024,
+    bios: { url: "https://copy.sh/v86/bios/seabios.bin" },
+    vga_bios: { url: "https://copy.sh/v86/bios/vgabios.bin" },
+    bzimage: { url: "https://i.copy.sh/buildroot-bzimage68.bin" },
+    filesystem: {},
+    cmdline: "tsc=reliable mitigations=off random.trust_cpu=on console=ttyS0",
+    autostart: true,
+    disable_keyboard: true,
+    serial_console: { type: "none" }
+  });
+
+  emulator.add_listener("emulator-ready", () => {
+    bootState.textContent = "Linux guest ready";
+  });
+
+  emulator.add_listener("serial0-output-byte", (byte: number) => {
+    const char = String.fromCharCode(byte);
+    term.write(char);
+    if (!booted && char === "%") {
+      booted = true;
+      bootState.remove();
+      setTimeout(() => {
+        if (bootstrapSent) return;
+        bootstrapSent = true;
+        send("clear; printf '\\033[1;34mInternShield WebTermux\\033[0m\\n'; printf '\\033[1;32mLinux guest: \\033[0m'; uname -srmo; printf '\\033[1;34mHostname: \\033[0m'; hostname; printf '\\033[1;34mShell: \\033[0m'; printf '%s\\n' \\"BusyBox ash\\"; printf '\\033[1;34mWorkspace: \\033[0m'; pwd; printf '\\033[1;34m\\nReady.\\033[0m\\n'\n");
+      }, 150);
+    }
+  });
+
+  emulator.add_listener("download-progress", (event: any) => {
+    if (event?.lengthComputable && event.total) {
+      const pct = Math.round((event.loaded / event.total) * 100);
+      bootState.textContent = `Loading Linux image ${pct}%...`;
+    }
+  });
+
+  emulator.add_listener("download-error", (event: any) => {
+    bootState.textContent = `Linux image load failed: ${event?.file_name ?? "unknown asset"}`;
+  });
+
+  installThemeHotkeys();
+}
+
+boot().catch((error) => {
+  bootState.textContent = "WebTermux boot failed";
+  term.writeln(`\\r\\n\\x1b[1;31mBoot error:\\x1b[0m ${String(error)}`);
+  term.writeln("Check the browser console and network access to the v86 assets.");
+});
+
+resize();
