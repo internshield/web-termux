@@ -114,7 +114,7 @@ async function ensureContainer(profile, sessionId) {
 
   if (dockerExists(name)) {
     if (!dockerRunning(name)) docker(["start", name]);
-    return { name, workspace };
+    return { container: name, workspace };
   }
 
   const image = IMAGES[profile];
