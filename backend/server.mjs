@@ -60,12 +60,12 @@ function authenticate(req) {
 }
 
 function safeKey(profile, sessionId) {
-  return \`\${profile}:\${sessionId}\`;
+  return `${profile}:${sessionId}`;
 }
 
 function containerName(profile, sessionId) {
   const hash = crypto.createHash("sha256").update(safeKey(profile, sessionId)).digest("hex").slice(0, 24);
-  return \`webtermux-\${profile}-\${hash}\`;
+  return `webtermux-${profile}-${hash}`;
 }
 
 function workspacePath(profile, sessionId) {
@@ -123,21 +123,21 @@ async function ensureContainer(profile, sessionId) {
       "run", "-d",
       "--name", name,
       "--label", "webtermux=true",
-      "--label", \`webtermux.session=\${sessionId}\`,
-      "--label", \`webtermux.profile=\${profile}\`,
+      "--label", `webtermux.session=${sessionId}`,
+      "--label", `webtermux.profile=${profile}`,
       "--memory", CONTAINER_MEMORY,
       "--cpus", CONTAINER_CPUS,
       "--pids-limit", CONTAINER_PIDS,
       "--init",
       "--network", "bridge",
-      "--mount", \`type=bind,src=\${workspace},dst=/workspace\`,
+      "--mount", `type=bind,src=${workspace},dst=/workspace`,
       "-w", "/workspace",
       image,
       "sleep", "infinity"
     ]);
   } catch (error) {
     throw new Error(
-      \`Could not start \${profile} image \${image}. Build the profile image first. \${String(error.stderr || error.message || error)}\`
+      `Could not start ${profile} image ${image}. Build the profile image first. ${String(error.stderr || error.message || error)}`
     );
   }
 
@@ -233,11 +233,11 @@ async function attachSession(auth, ws) {
 
   session.pty.onExit(({ exitCode }) => {
     if (ws.readyState === WebSocket.OPEN) {
-      ws.send(\`\\r\\n\\x1b[1;31m[WebTermux] shell exited (\${exitCode})\\x1b[0m\\r\\n\`);
+      ws.send(`\\r\\n\\x1b[1;31m[WebTermux] shell exited (${exitCode})\\x1b[0m\\r\\n`);
     }
   });
 
-  ws.send(\`\\x1b[1;36m[WebTermux] Connected to isolated \${auth.profile} Linux workspace.\\x1b[0m\\r\\n\`);
+  ws.send(`\\x1b[1;36m[WebTermux] Connected to isolated ${auth.profile} Linux workspace.\\x1b[0m\\r\\n`);
 }
 
 wss.on("connection", async (ws, _req, auth) => {
@@ -280,7 +280,7 @@ wss.on("connection", async (ws, _req, auth) => {
 });
 
 server.on("upgrade", (req, socket, head) => {
-  const url = new URL(req.url || "/", \`http://\${req.headers.host || "localhost"}\`);
+  const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
 
   if (url.pathname !== "/terminal") {
     socket.destroy();
@@ -335,5 +335,5 @@ process.on("SIGINT", async () => {
 });
 
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(\`WebTermux backend listening on 0.0.0.0:\${PORT}\`);
+  console.log(`WebTermux backend listening on 0.0.0.0:${PORT}`);
 });
