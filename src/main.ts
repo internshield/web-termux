@@ -97,6 +97,7 @@ function connect() {
   socket.onopen = () => {
     bootState.textContent = `Connected — ${profile}`;
     sendResize();
+    term.focus();
     window.setTimeout(() => bootState.remove(), 1200);
   };
 
@@ -131,6 +132,9 @@ term.onData((data) => {
 
 term.onResize(() => sendResize());
 window.addEventListener("resize", () => fit.fit());
+terminalHost.addEventListener("click", () => term.focus());
+window.addEventListener("load", () => term.focus());
+
 
 window.addEventListener("keydown", (event) => {
   if (!event.ctrlKey || !event.shiftKey) return;
