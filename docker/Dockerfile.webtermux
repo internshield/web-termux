@@ -1,0 +1,5 @@
+# Reserved image definition
+
+This directory is reserved for the custom WebTermux Sandbox image build.
+
+The eventual image should be based on a Cloudflare Sandbox-compatible base image with an explicit toolchain layer. Keep distribution profiles separate rather than mixing Debian/Ubuntu/Arch package managers in one image.
