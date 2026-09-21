@@ -1,15 +1,13 @@
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
-import { SandboxAddon } from "@cloudflare/sandbox/xterm";
 import "@xterm/xterm/css/xterm.css";
 import "./styles.css";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
-app.innerHTML = `<div id="terminal"></div><div id="boot">Connecting to Linux PTY...</div>`;
+app.innerHTML = `<div id="terminal"></div><div id="boot">Connecting to WebTermux backend...</div>`;
 
 const terminalHost = document.querySelector<HTMLDivElement>("#terminal")!;
 const bootState = document.querySelector<HTMLDivElement>("#boot")!;
-
 const nav = navigator as Navigator & { deviceMemory?: number };
 
 const term = new Terminal({
@@ -40,6 +38,18 @@ const themes = {
   E: { background: "#050505", foreground: "#7cf7ff", cursor: "#ffcf70", selectionBackground: "#27414a" }
 } as const;
 
+const profileFromUrl = new URLSearchParams(location.search).get("profile")?.toLowerCase();
+const allowedProfiles = new Set(["debian", "ubuntu", "arch"]);
+const storedProfile = localStorage.getItem("webtermux-profile") ?? "ubuntu";
+const profile = allowedProfiles.has(profileFromUrl ?? "") ? profileFromUrl! : (allowedProfiles.has(storedProfile) ? storedProfile : "ubuntu");
+localStorage.setItem("webtermux-profile", profile);
+
+const sessionId = localStorage.getItem("webtermux-session-id") ?? crypto.randomUUID();
+localStorage.setItem("webtermux-session-id", sessionId);
+
+const decoder = new TextDecoder("utf-8");
+let socket: WebSocket | null = null;
+
 function browserFacts() {
   return [
     `Browser: ${nav.userAgent}`,
@@ -54,51 +64,95 @@ function writeLocalBanner() {
   term.writeln("\x1b[1;36m║                 INTERN SHIELD                         ║\x1b[0m");
   term.writeln("\x1b[1;37m║                   WEBTERMUX                          ║\x1b[0m");
   term.writeln("\x1b[1;34m╚══════════════════════════════════════════════════════╝\x1b[0m");
+  term.writeln(`\x1b[1;32mLinux profile: ${profile}\x1b[0m`);
   term.writeln("\x1b[90mBrowser-side facts (not Linux guest facts):\x1b[0m");
   for (const fact of browserFacts()) term.writeln(`\x1b[90m  ${fact}\x1b[0m`);
+  term.writeln("\x1b[90mProfiles: Ctrl+Shift+1 Debian | 2 Ubuntu | 3 Arch\x1b[0m");
+  term.writeln("\x1b[90mThemes:   Ctrl+Shift+A/B/C/D/E\x1b[0m");
   term.writeln("");
 }
 
-function connect() {
-  const sandboxId = localStorage.getItem("webtermux-sandbox-id") ?? crypto.randomUUID();
-  localStorage.setItem("webtermux-sandbox-id", sandboxId);
-
-  const addon = new SandboxAddon({
-    getWebSocketUrl: ({ sandboxId, origin }) => `${origin}/terminal?id=${encodeURIComponent(sandboxId)}`,
-    onStateChange: (state, error) => {
-      bootState.textContent = error ? `PTY ${state}: ${String(error)}` : `PTY ${state}`;
-    }
-  });
-  term.loadAddon(addon);
-  addon.connect({ sandboxId });
-
-  bootState.textContent = "Linux PTY connected";
-  window.setTimeout(() => bootState.remove(), 1200);
+function control(message: string) {
+  socket?.send("\0" + message);
 }
 
-term.onResize(({ cols, rows }) => {
-  // SandboxAddon handles the PTY resize through the active WebSocket.
-  void cols;
-  void rows;
+function sendResize() {
+  if (socket?.readyState === WebSocket.OPEN) {
+    control(`RESIZE ${term.cols} ${term.rows}`);
+  }
+}
+
+function setProfile(next: string) {
+  localStorage.setItem("webtermux-profile", next);
+  location.href = `?profile=${encodeURIComponent(next)}`;
+}
+
+function connect() {
+  const scheme = location.protocol === "https:" ? "wss:" : "ws:";
+  const endpoint = `${scheme}//${location.host}/terminal?sid=${encodeURIComponent(sessionId)}&profile=${encodeURIComponent(profile)}`;
+
+  socket = new WebSocket(endpoint);
+  socket.binaryType = "arraybuffer";
+
+  socket.onopen = () => {
+    bootState.textContent = `Connected — ${profile}`;
+    sendResize();
+    window.setTimeout(() => bootState.remove(), 1200);
+  };
+
+  socket.onmessage = async (event) => {
+    if (typeof event.data === "string") {
+      term.write(event.data);
+      return;
+    }
+
+    if (event.data instanceof ArrayBuffer) {
+      term.write(decoder.decode(new Uint8Array(event.data), { stream: true }));
+      return;
+    }
+
+    if (event.data instanceof Blob) {
+      term.write(decoder.decode(new Uint8Array(await event.data.arrayBuffer()), { stream: true }));
+    }
+  };
+
+  socket.onerror = () => {
+    bootState.textContent = "PTY connection error";
+  };
+
+  socket.onclose = (event) => {
+    bootState.textContent = `PTY closed (${event.code}) — reload to reconnect`;
+  };
+}
+
+term.onData((data) => {
+  if (socket?.readyState === WebSocket.OPEN) socket.send(data);
 });
 
+term.onResize(() => sendResize());
 window.addEventListener("resize", () => fit.fit());
 
 window.addEventListener("keydown", (event) => {
   if (!event.ctrlKey || !event.shiftKey) return;
+
   const key = event.key.toUpperCase() as keyof typeof themes;
-  if (!themes[key]) return;
-  event.preventDefault();
-  term.options.theme = themes[key];
+  if (themes[key]) {
+    event.preventDefault();
+    term.options.theme = themes[key];
+    return;
+  }
+
+  if (event.key === "1") {
+    event.preventDefault();
+    setProfile("debian");
+  } else if (event.key === "2") {
+    event.preventDefault();
+    setProfile("ubuntu");
+  } else if (event.key === "3") {
+    event.preventDefault();
+    setProfile("arch");
+  }
 });
 
 writeLocalBanner();
-
-try {
-  connect();
-} catch (error) {
-  bootState.textContent = "Terminal connection failed";
-  term.writeln("");
-  term.writeln(`\x1b[1;31m[WebTermux] ${String(error)}\x1b[0m`);
-  term.writeln("\x1b[90mExpected backend: Cloudflare Worker + Sandbox PTY.\x1b[0m");
-}
+connect();
