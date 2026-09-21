@@ -60,14 +60,17 @@ function writeLocalBanner() {
 }
 
 function connect() {
+  const sandboxId = localStorage.getItem("webtermux-sandbox-id") ?? crypto.randomUUID();
+  localStorage.setItem("webtermux-sandbox-id", sandboxId);
+
   const addon = new SandboxAddon({
-    getWebSocketUrl: ({ origin }) => `${origin}/terminal`,
+    getWebSocketUrl: ({ sandboxId, origin }) => `${origin}/terminal?id=${encodeURIComponent(sandboxId)}`,
     onStateChange: (state, error) => {
       bootState.textContent = error ? `PTY ${state}: ${String(error)}` : `PTY ${state}`;
     }
   });
   term.loadAddon(addon);
-  addon.connect();
+  addon.connect({ sandboxId });
 
   bootState.textContent = "Linux PTY connected";
   window.setTimeout(() => bootState.remove(), 1200);
