@@ -6,7 +6,7 @@ import { execFileSync } from "node:child_process";
 import http from "node:http";
 import express from "express";
 import pty from "node-pty";
-import { WebSocketServer } from "ws";
+import { WebSocketServer, WebSocket } from "ws";
 
 const app = express();
 const server = http.createServer(app);
@@ -226,11 +226,11 @@ async function attachSession(auth, ws) {
 
   session.pty.onData((data) => {
     session.lastActivity = Date.now();
-    if (ws.readyState === ws.OPEN) ws.send(data);
+    if (ws.readyState === WebSocket.OPEN) ws.send(data);
   });
 
   session.pty.onExit(({ exitCode }) => {
-    if (ws.readyState === ws.OPEN) {
+    if (ws.readyState === WebSocket.OPEN) {
       ws.send(\`\\r\\n\\x1b[1;31m[WebTermux] shell exited (\${exitCode})\\x1b[0m\\r\\n\`);
     }
   });
