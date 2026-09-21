@@ -1,0 +1,23 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend.Dockerfile
+    environment:
+      PORT: 8787
+      WEBTERMUX_SHARED_SECRET: ${WEBTERMUX_SHARED_SECRET}
+      SESSION_ROOT: /var/lib/webtermux/workspaces
+      SESSION_IDLE_MS: ${SESSION_IDLE_MS:-1800000}
+      MAX_SESSIONS: ${MAX_SESSIONS:-25}
+      CONTAINER_MEMORY: ${CONTAINER_MEMORY:-2g}
+      CONTAINER_CPUS: ${CONTAINER_CPUS:-2}
+      CONTAINER_PIDS: ${CONTAINER_PIDS:-256}
+      DEBIAN_IMAGE: webtermux-debian:latest
+      UBUNTU_IMAGE: webtermux-ubuntu:latest
+      ARCH_IMAGE: webtermux-arch:latest
+    ports:
+      - "8787:8787"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/webtermux:/var/lib/webtermux
+    restart: unless-stopped
