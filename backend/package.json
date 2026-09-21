@@ -1,0 +1,12 @@
+{
+  "name": "@internshield/web-termux-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node server.mjs" },
+  "dependencies": {
+    "express": "^5.1.0",
+    "node-pty": "^1.1.0",
+    "ws": "^8.18.3"
+  }
+}
