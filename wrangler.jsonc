@@ -6,5 +6,8 @@
   "assets": {
     "binding": "ASSETS",
     "directory": "./dist"
+  },
+  "vars": {
+    "BACKEND_URL": "https://terminal-backend.internshield.in"
   }
 }
