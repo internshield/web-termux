@@ -2,75 +2,88 @@
 
 **InternShield WebTermux** is a terminal-first browser Linux workspace backed by a real server-side Linux PTY.
 
-The browser is only the terminal UI. Linux command execution happens inside a Cloudflare Sandbox container and is streamed through a WebSocket PTY. Cloudflare's current terminal model is:
+The public site stays on the Cloudflare Workers Free plan. Cloudflare only handles the terminal frontend and WebSocket gateway. Linux execution runs on a Linux host through isolated Docker containers.
 
-`Browser xterm.js <-> WebSocket <-> Worker <-> Sandbox PTY (bash)`.
-
-## Target environment
-
-The Linux image is intended to provide a broad developer/security-learning toolchain, including:
-
-- Debian/Ubuntu-family `apt`
-- Arch-family `pacman`
-- `bash`, `coreutils`, `curl`, `wget`, `git`
-- `gcc`, `g++`, `make`, `cmake`, `gdb`, `pkg-config`
-- Python 3 + `pip` + virtual environments
-- Perl
-- Node.js + npm
-- Go and Rust toolchains where image size permits
-- `vim`, `nano`, `tmux`, `htop`, `tree`, `jq`, `zip`, `unzip`
-- security-learning tools such as `nmap`, `openssl`, `tcpdump`, `netcat`, and lab utilities
-
-Do not present multiple distributions as one fake system. The production design should use selectable Linux images/profiles:
-
-- **Debian** — stable general-purpose Linux + apt
-- **Ubuntu** — developer/education profile + apt
-- **Arch** — rolling developer/security profile + pacman
-
-A single user session gets one Linux image/profile at a time.
-
-## Public-site architecture
+## Runtime
 
 ```
-Browser
-  |
-  | xterm.js / WebSocket
-  v
-Cloudflare Worker
-  |
-  | Sandbox terminal()
-  v
-Isolated Linux PTY
-  |
-  +-- filesystem
-  +-- compiler/toolchains
-  +-- Python/Perl/Node
-  +-- security-learning tools
+Browser xterm.js
+  -> Cloudflare Worker (Free)
+  -> WebSocket
+  -> Cloudflare Tunnel
+  -> Linux PTY backend
+  -> one isolated Docker container per session
 ```
 
-The public site can serve everyone from one domain, but the runtime should create isolated sandbox sessions rather than one shared shell.
+The browser never fabricates Linux kernel, disk, IP, GPU or wireless facts.
 
-## Security boundary
+## Linux profiles
 
-The terminal is for development, education, CTFs and systems the user is authorized to test.
+Each session uses one real Linux distribution:
 
-A public security terminal should not expose the host filesystem, Cloudflare credentials, other users' sessions, or provider metadata. Network access and high-risk tooling should be constrained to authorized labs/CTF targets rather than turned into an unrestricted public attack platform.
+- **Debian** — apt
+- **Ubuntu** — apt
+- **Arch** — pacman
 
-## Local ZIP-derived ideas
+The images include a broad developer and security-learning toolchain:
 
-The supplied `web-terminal` project contains a useful reference pattern: xterm.js + WebSocket + per-session Linux containers, non-root execution, resource limits, session expiry and explicit cleanup.
+```
+bash git
+gcc g++ clang
+make cmake gdb
+python3 pip venv
+perl
+node npm
+go rust
+curl wget openssl
+jq tmux vim nano
+sqlite3 strace lsof socat ripgrep
+nmap tcpdump netcat
+dnsutils iproute2 ping traceroute
+zip unzip tar gzip bzip2 xz
+```
 
-Those ideas are carried forward here, while the production backend is moved to Cloudflare Sandbox/PTy instead of requiring a Docker socket on the public web server.
+Use `Ctrl+Shift+1/2/3` to change the profile without adding website UI.
 
-## Deploy
+## Session isolation
 
-Use the GitHub repository as the source of truth and deploy the Worker with Wrangler. The Worker exposes:
+Every browser gets a random session ID. The backend maps that session to:
 
-- `/terminal` — WebSocket PTY endpoint
-- `/health` — health check
-- static assets — Vite build output
+- one Linux profile
+- one Docker container
+- one private writable workspace
 
-Cloudflare Containers/Sandbox currently require Workers Paid and are usage-billed; Containers can scale to zero when idle. Budget for concurrent terminals before making the service fully public.
+The backend applies CPU, memory, PID and idle-session limits.
+
+## Free-plan deployment
+
+See [docs/FREE-PLAN-DEPLOYMENT.md](docs/FREE-PLAN-DEPLOYMENT.md).
+
+Cloudflare Worker build settings:
+
+```
+Build command:  npm run build
+Deploy command: npx wrangler deploy
+```
+
+Worker variables:
+
+```
+BACKEND_URL
+BACKEND_SECRET
+```
+
+The Linux backend uses the same secret as `WEBTERMUX_SHARED_SECRET`.
+
+## ZIP-derived ideas
+
+The supplied `web-terminal` reference contributed the useful architecture ideas of xterm.js + WebSocket + per-session containers, non-root sessions, resource limits, idle cleanup and explicit workspace isolation.
+
+## Security
+
+The execution backend should only be operated on a trusted Linux host. Its Docker socket is never exposed to browsers. The backend binds to localhost and is published through Cloudflare Tunnel.
+
+Security tools are for authorized labs, CTFs and systems the operator/user is permitted to test. Do not operate the service as an unrestricted public attack platform.
 
 ## License
 
