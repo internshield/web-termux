@@ -62,21 +62,12 @@ export default {
       upstream.search = "";
 
       const signature = await sign(env.BACKEND_SECRET, sessionId + "|" + profile);
-      const headers = new Headers({
-        "Upgrade": "websocket"
-      });
+      const upstreamRequest = new Request(upstream.toString(), request);
+      upstreamRequest.headers.set("x-webtermux-session", sessionId);
+      upstreamRequest.headers.set("x-webtermux-profile", profile);
+      upstreamRequest.headers.set("x-webtermux-signature", signature);
 
-      const protocol = request.headers.get("Sec-WebSocket-Protocol");
-      if (protocol) headers.set("Sec-WebSocket-Protocol", protocol);
-
-      headers.set("x-webtermux-session", sessionId);
-      headers.set("x-webtermux-profile", profile);
-      headers.set("x-webtermux-signature", signature);
-
-      return fetch(upstream, {
-        method: "GET",
-        headers
-      });
+      return fetch(upstreamRequest);
     }
 
     const asset = await env.ASSETS.fetch(request);
