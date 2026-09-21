@@ -1,7 +1,10 @@
-import { getSandbox } from "@cloudflare/sandbox";
+import { getSandbox, type Sandbox } from "@cloudflare/sandbox";
+
+export { Sandbox };
 
 interface Env {
-  SANDBOX: Fetcher;
+  ASSETS: Fetcher;
+  Sandbox: DurableObjectNamespace<Sandbox>;
 }
 
 function isUpgrade(request: Request) {
@@ -13,7 +16,8 @@ export default {
     const url = new URL(request.url);
 
     if (isUpgrade(request) && url.pathname === "/terminal") {
-      const sandbox = getSandbox(env.SANDBOX);
+      const id = url.searchParams.get("id") || "anonymous-default";
+      const sandbox = getSandbox(env.Sandbox, id);
       return await sandbox.terminal(request, {
         cols: 120,
         rows: 32
