@@ -2,41 +2,48 @@
 
 ## Runtime
 
+```
 Browser xterm.js
--> WebSocket
--> Cloudflare Worker
--> Cloudflare Sandbox terminal
--> real Linux PTY
--> bash
+      |
+      | WebSocket
+      v
+Cloudflare Worker (Free)
+      |
+      | signed WebSocket proxy
+      v
+Cloudflare Tunnel
+      |
+      v
+Linux PTY backend
+      |
+      +---- Docker session: Debian
+      +---- Docker session: Ubuntu
+      +---- Docker session: Arch
+```
 
-The browser must never fake Linux kernel, disk, IP, GPU or wireless facts.
+The browser is only the terminal UI. Linux command execution happens on the backend host.
 
-## Linux profiles
+## Per-session isolation
 
-The runtime image should be published as three profiles:
+Each browser session gets:
 
-1. Debian
-2. Ubuntu
-3. Arch
+- one opaque UUID session ID
+- one Linux profile
+- one Docker container
+- one writable workspace directory
 
-The profile selector changes the container image used for a new session. Do not mix apt and pacman binaries into a single distro and call it authentic.
-
-## Workspace
-
-Each session receives a private workspace. Future persistence can use a per-user object/storage key, but public sessions must never share a writable filesystem.
+The profile images are separate real distributions. apt is used in Debian/Ubuntu, pacman in Arch.
 
 ## Tooling
 
-General development:
-git, gcc/g++, make/cmake, gdb, Python, Perl, Node/npm, Go, Rust, curl, wget, jq, tmux.
+Developer:
+git, gcc/g++, clang, make, cmake, gdb, Python 3, pip, Perl, Node.js/npm, Go, Rust, curl, wget, OpenSSL, jq, tmux, vim, nano and common Unix utilities.
 
 Security learning:
-nmap, openssl, tcpdump, netcat and lab-specific tooling.
+nmap, tcpdump, netcat, DNS/IP tools and related utilities.
 
-High-risk tooling should be placed in explicit authorized lab images with additional target/network controls.
+The public service should be operated only with an appropriate network policy and authorized lab targets.
 
-## Data paths
+## Why Cloudflare Free
 
-- Worker: routing and session policy
-- Sandbox: Linux process/filesystem
-- R2/Durable Objects/D1: optional persistence, metadata and exports
+The Worker is used as the public gateway because Workers Free supports WebSockets. Cloudflare Tunnel is used to reach the Linux backend without opening an inbound port. The Linux compute is therefore outside the paid Workers Containers product.
