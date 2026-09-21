@@ -1,13 +1,4 @@
 const VALID_PROFILES = new Set(["debian", "ubuntu", "arch"]);
-const WS_HEADERS = new Set([
-  "upgrade",
-  "connection",
-  "sec-websocket-key",
-  "sec-websocket-version",
-  "sec-websocket-protocol",
-  "sec-websocket-extensions"
-]);
-
 interface Env {
   ASSETS: Fetcher;
   BACKEND_URL?: string;
@@ -71,11 +62,12 @@ export default {
       upstream.search = "";
 
       const signature = await sign(env.BACKEND_SECRET, sessionId + "|" + profile);
-      const headers = new Headers();
+      const headers = new Headers({
+        "Upgrade": "websocket"
+      });
 
-      for (const [name, value] of request.headers) {
-        if (WS_HEADERS.has(name.toLowerCase())) headers.set(name, value);
-      }
+      const protocol = request.headers.get("Sec-WebSocket-Protocol");
+      if (protocol) headers.set("Sec-WebSocket-Protocol", protocol);
 
       headers.set("x-webtermux-session", sessionId);
       headers.set("x-webtermux-profile", profile);
