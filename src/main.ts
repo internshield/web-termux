@@ -7,11 +7,13 @@ const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `<div id="terminal"></div><div id="boot">Connecting to WebTermux backend...</div>`;
 
 const terminalHost = document.querySelector<HTMLDivElement>("#terminal")!;
+terminalHost.tabIndex = 0;
 const bootState = document.querySelector<HTMLDivElement>("#boot")!;
 const nav = navigator as Navigator & { deviceMemory?: number };
 
 const term = new Terminal({
   convertEol: false,
+  disableStdin: false,
   cursorBlink: true,
   scrollback: 50000,
   fontSize: 15,
@@ -132,9 +134,54 @@ term.onData((data) => {
 
 term.onResize(() => sendResize());
 window.addEventListener("resize", () => fit.fit());
-terminalHost.addEventListener("click", () => term.focus());
-window.addEventListener("load", () => term.focus());
 
+terminalHost.addEventListener("click", () => {
+  term.focus();
+  term.textarea?.focus();
+});
+
+window.addEventListener("load", () => {
+  term.focus();
+  term.textarea?.focus();
+});
+
+// Fallback keyboard bridge for browsers where xterm's hidden textarea
+// does not retain focus. Normal xterm input is ignored when the textarea
+// is active, so this does not double-send normal keystrokes.
+document.addEventListener("keydown", (event) => {
+  if (socket?.readyState !== WebSocket.OPEN) return;
+  const target = event.target as HTMLElement | null;
+  if (target?.tagName === "TEXTAREA" || target?.tagName === "INPUT") return;
+
+  if (event.ctrlKey && event.key.length === 1) {
+    socket.send(String.fromCharCode(event.key.toUpperCase().charCodeAt(0) - 64));
+    event.preventDefault();
+    return;
+  }
+
+  const sequences: Record<string, string> = {
+    Enter: "\r",
+    Backspace: "\x7f",
+    Tab: "\t",
+    Escape: "\x1b",
+    ArrowUp: "\x1b[A",
+    ArrowDown: "\x1b[B",
+    ArrowRight: "\x1b[C",
+    ArrowLeft: "\x1b[D"
+  };
+
+  const sequence = sequences[event.key];
+  if (sequence) {
+    socket.send(sequence);
+    event.preventDefault();
+    return;
+  }
+
+  if (event.key.length === 1 && !event.altKey && !event.metaKey) {
+    socket.send(event.key);
+    event.preventDefault();
+  }
+});
 
 window.addEventListener("keydown", (event) => {
   if (!event.ctrlKey || !event.shiftKey) return;
