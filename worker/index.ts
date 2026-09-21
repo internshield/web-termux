@@ -14,7 +14,7 @@ export default {
 
     if (isUpgrade(request) && url.pathname === "/terminal") {
       const sandbox = getSandbox(env.SANDBOX);
-      return sandbox.terminal(request, {
+      return await sandbox.terminal(request, {
         cols: 120,
         rows: 32
       });
