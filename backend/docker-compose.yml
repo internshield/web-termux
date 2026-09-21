@@ -16,7 +16,7 @@ services:
       UBUNTU_IMAGE: webtermux-ubuntu:latest
       ARCH_IMAGE: webtermux-arch:latest
     ports:
-      - "8787:8787"
+      - "127.0.0.1:8787:8787"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /var/lib/webtermux:/var/lib/webtermux
