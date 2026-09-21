@@ -1,5 +1,21 @@
 # Security
 
-Use security tooling only against systems and labs you are authorized to test.
+WebTermux is a public terminal surface, so isolation is the primary boundary.
 
-Do not expose a shared PTY to unrelated users. A production runtime should isolate filesystem/process/network resources, use opaque sessions, expire idle sessions, and keep provider secrets outside the guest.
+Required controls:
+
+- one isolated sandbox session per active terminal
+- non-root default user
+- CPU, memory, disk and process limits
+- idle timeout and explicit cleanup
+- no host filesystem mounts
+- no provider credentials inside the guest
+- opaque session identifiers
+- rate limiting / abuse controls
+- audit only the minimum metadata needed for operations
+- downloadable files stay inside the user's workspace/export path
+- security tools are restricted to authorized learning labs and CTF targets
+
+Do not make a shared shell for all visitors.
+
+If network-enabled tooling is offered, isolate it in a separate lab profile and apply explicit egress/target controls. Do not treat a public unauthenticated terminal as an unrestricted scanner.
