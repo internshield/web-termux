@@ -20,6 +20,8 @@ const MAX_SESSIONS = Number(process.env.MAX_SESSIONS || 25);
 const CONTAINER_MEMORY = process.env.CONTAINER_MEMORY || "2g";
 const CONTAINER_CPUS = process.env.CONTAINER_CPUS || "2";
 const CONTAINER_PIDS = process.env.CONTAINER_PIDS || "256";
+const CONTAINER_UID = 10001;
+const CONTAINER_GID = 10001;
 
 const IMAGES = {
   debian: process.env.DEBIAN_IMAGE || "webtermux-debian:latest",
@@ -101,7 +103,7 @@ async function ensureWorkspace(profile, sessionId) {
   const dir = workspacePath(profile, sessionId);
   await fsp.mkdir(dir, { recursive: true, mode: 0o770 });
   try {
-    await fsp.chown(dir, 1000, 1000);
+    await fsp.chown(dir, CONTAINER_UID, CONTAINER_GID);
   } catch {}
   return dir;
 }
